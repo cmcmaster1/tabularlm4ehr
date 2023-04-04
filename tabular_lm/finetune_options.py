@@ -1,23 +1,17 @@
 # Argparse options for finetuning a model using finetune.py
 
 import argparse
-import os
-import sys
-
-base_dir = "/mnt/hdd/projects/pretraining_data/multitasks"
-tasks_dir = os.path.join(base_dir, "processed_data/tabular")
-cache_dir = os.path.join(base_dir, "cache")
-
-# The tasks are found as datasets in the data/tabular directory, with each in its own folder
-# We can therefore list the tasks by listing the folders in the data/tabular directory
-tasks = [f.name for f in os.scandir(tasks_dir) if f.is_dir()]
-
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_and_data", type=str, default="t5-small", help="The model and data to use.")
-    parser.add_argument("--cache_dir", type=str, default=cache_dir, help="Where do you want to store the pre-trained models downloaded from s3")
+    parser.add_argument("--model", type=str, default="austin/mimic-pubmed-deberta-small", help="The model to use.")
+    parser.add_argument("--tokenizer", type=str, default=None, help="The tokenizer to use (if different to the model).")
+    parser.add_argument("--task", type=str, default="all", help="The task to finetune on.")
+    parser.add_argument("--data_dir", type=str, default="data", help="The input data dir. Should contain the .csv files (or other data files) for the task.")
+    parser.add_argument("--cache_dir", type=str, default="cache", help="Where do you want to store the pre-trained models downloaded from s3")
+    parser.add_argument("--wandb_project", type=str, default="tabular_lm", help="The wandb project to use.")
+    parser.add_argument("--wandb_run_name", type=str, default=None, help="The wandb run name to use.")
     parser.add_argument("--max_seq_length", type=int, default=512, help="The maximum total input sequence length after tokenization. Sequences longer than this will be truncated, sequences shorter will be padded.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size per GPU/CPU for training.")
     parser.add_argument("--per_device_eval_batch_size", type=int, default=8, help="Batch size per GPU/CPU for evaluation.")

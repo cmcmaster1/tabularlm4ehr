@@ -9,59 +9,37 @@ import pandas as pd
 import wandb
 from transformers import set_seed
 
-bootstrap = True
-
 set_seed(seed=17)
 data_dir = "data"
 
 def main():
     opt = get_args()
-    # Create a list of the folder names in the data/mimic_iv directory:
-    tasks = [f.name for f in os.scandir(data_dir) if f.is_dir()]
-    models = [True, False]
 
-    # Now create a list of all the possible combinations of tasks and models:
-    task_model_combinations = [(task, model) for task in tasks for model in models]
-    opt.dataset, opt.specialised_model = task_model_combinations[int(opt.model_and_data) - 1]
+    # Split the task name on _ to get the data features
+    opt.data_features = opt.task.split("_")
 
-    # Task name is the integer contained in the dataset name
-    opt.task_name = opt.dataset.split("_")[3]
-    data_features = opt.dataset.split("_")[4:] + ["small"]
-
-    if opt.specialised_model:
-        model_name = "mimic-pubmed-deberta-small"
+    # If op.model contains / then split on / and take the last element
+    if "/" in opt.model:
+        opt.model_name = opt.model.split("/")[-1]
     else:
-        model_name = "deberta-small"
+        opt.model_name = opt.model
 
-    opt.output_dir = opt.dataset + "_" + model_name
+    opt.output_dir = opt.task + "_" + opt.model_name
 
+    if opt.wandb_run_name is None:
+        opt.wandb_run_name = opt.task + "_" + opt.model_name
 
-        
-    
-    if opt.specialised_model:
-        # opt.model = "austin/mimic-pubmed-deberta-small"
-        # opt.tokenizer = "austin/mimic-pubmed-deberta-small"
-        opt.model = "austin/medberta_v2"
-        opt.tokenizer = "microsoft/deberta-base"
-    else:
-        opt.model = "microsoft/deberta-v3-small"
-        opt.tokenizer = "microsoft/deberta-v3-small"
-
-    wandb.init(project="llm_tab", 
-           name=opt.dataset + "_" + model_name,
-           group=model_name,
-           tags=data_features
+    wandb.init(project=opt.wand_project, 
+           name=opt.wandb_run_name,
+           group=opt.model_name,
+           tags=opt.data_features
            )
-
-    base_dir = "/mnt/hdd/projects/pretraining_data/multitasks"
-    tasks_dir = os.path.join(base_dir, "data/mimic_iv")
-
     # load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained(opt.tokenizer)
     model = AutoModelForSequenceClassification.from_pretrained(opt.model, cache_dir=opt.cache_dir)
 
     # load dataset
-    dataset = load_from_disk(os.path.join(tasks_dir, opt.dataset))
+    dataset = load_from_disk(os.path.join(opt.data_dir, opt.task))
     # If dataset is not a DatasetDict then we need to do a train/test split with seed 901
     if not isinstance(dataset, DatasetDict):
         dataset = dataset.train_test_split(test_size=0.1, seed=901)
@@ -139,7 +117,7 @@ def main():
 
     # define training arguments
     training_args = TrainingArguments(
-        output_dir=os.path.join(base_dir, "models", opt.output_dir),
+        output_dir=os.path.join("models", opt.output_dir),
         num_train_epochs=opt.epochs,
         per_device_train_batch_size=opt.per_device_train_batch_size,
         per_device_eval_batch_size=opt.per_device_eval_batch_size,
@@ -158,7 +136,6 @@ def main():
         # load best model at the end of training
         load_best_model_at_end=True,
         metric_for_best_model="eval_auc",
-        # warmup_steps=100,
         lr_scheduler_type="constant"
     )
 
@@ -184,7 +161,7 @@ def main():
     # This is a very simple implementation of bootstrapping, but it should be sufficient for our purposes
 
     # Create 50 bootstrap samples of the test set
-    if bootstrap:
+    if opt.n_bootstraps > 0:
         rng = np.random.default_rng(567)
         
         bootstrapped_results = []
